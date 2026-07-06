@@ -1,0 +1,26 @@
+services:
+  myfood-api:
+    build:
+      context: ./MyFood-api
+      dockerfile: Dockerfile
+    container_name: myfood-api
+    restart: unless-stopped
+    env_file: server.env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+    ports:
+      - "5033:8080"
+    volumes:
+      - ./uploads:/app/wwwroot/uploads
+
+  myfood-front:
+    build:
+      context: ./MyFood-front
+      dockerfile: Dockerfile
+    container_name: myfood-front
+    restart: unless-stopped
+    depends_on:
+      - myfood-api
+    ports:
+      - "3004:80"

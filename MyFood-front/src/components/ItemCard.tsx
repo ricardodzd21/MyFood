@@ -1,0 +1,36 @@
+import { Link } from 'react-router-dom'
+import { Heart, ImageOff } from 'lucide-react'
+import StarRating from './StarRating'
+import type { Item } from '../lib/api'
+
+export default function ItemCard({ item }: { item: Item }) {
+  return (
+    <Link to={`/item/${item.Id}`} className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-stone-100">
+      <div className="aspect-[4/3] bg-stone-100 relative overflow-hidden">
+        {item.MainPhotoUrl ? (
+          <img src={item.MainPhotoUrl} alt={item.Name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-stone-300 text-4xl">
+            {item.CategoryIcon || <ImageOff />}
+          </div>
+        )}
+        {item.IsFavorite && (
+          <span className="absolute top-2 right-2 bg-white/90 rounded-full p-1.5">
+            <Heart size={14} className="fill-red-500 text-red-500" />
+          </span>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="flex items-center gap-1 text-xs text-stone-500 mb-1">
+          <span>{item.CategoryIcon}</span>
+          <span>{item.CategoryName}</span>
+          {item.SubcategoryName && <span>· {item.SubcategoryName}</span>}
+        </div>
+        <h3 className="font-semibold text-stone-800 line-clamp-1">{item.Name}</h3>
+        <div className="mt-1.5">
+          <StarRating value={item.Rating} size={14} />
+        </div>
+      </div>
+    </Link>
+  )
+}
