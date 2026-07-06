@@ -1,103 +1,71 @@
 # Deploy — MyFood
 
-Mesmo padrão Docker dos outros projetos InterConsult.
+Mesmo modelo do Carlink: **a pipeline compila e publica**. O GitHub Actions builda o front e a API no runner e envia os artefatos prontos por **SCP** (usando a chave SSH). O servidor só recebe os arquivos e roda `docker compose`. **Nada de git no servidor.**
 
-- **Servidor**: `69.197.168.215` (mesmo do Carlink/ServiceLink/GoIndaiatuba)
+- **Servidor**: `69.197.168.215` (aaPanel)
 - **Path**: `/www/wwwroot/myfood`
-- **Containers**: `myfood-api` (host 5033 → 8080), `myfood-front` (host 3004 → 80)
-- **Banco**: Postgres em `172.17.0.1:35432`, database `MyFood`
-- **Nginx do host**: `https://${DOMAIN}` → `127.0.0.1:3004` (front) → `myfood-api:8080` (api)
-- **CI/CD**: push em `main` → GitHub Actions → SSH → `git pull && docker compose build --no-cache && up -d`
+- **Containers**: `myfood-api` (host **5033** → 8080), `myfood-front` (host **3004** → 80)
+- **Banco**: Postgres do host — a API cria o database `MyFood` e as tabelas sozinha no boot (EF `Migrate()`)
+- **Proxy + SSL**: feitos pelo **aaPanel** (site do domínio → proxy reverso p/ `127.0.0.1:3004`), igual aos outros sites
 
 ---
 
-## 1. Criar o repositório no GitHub
+## 1. Secrets no GitHub (uma vez)
 
-1. Crie um repo **privado** chamado **`MyFood`** na conta `ricardodzd21`
-   (https://github.com/new — Owner: ricardodzd21, Name: MyFood, Private, **sem** README/gitignore).
-2. No projeto local, envie o código (ver seção 2).
-3. Adicione os **secrets** (Settings → Secrets and variables → Actions):
-   - `SERVER_HOST` = `69.197.168.215`
-   - `SERVER_USER` = `root`
-   - `SSH_PRIVATE_KEY` = conteúdo da sua chave SSH privada (a mesma dos outros projetos)
-   - `SERVER_PORT` = `22` (opcional)
-
----
-
-## 2. Enviar o código (primeira vez)
-
-Já feito o `git init` + commit local. Só falta apontar o remote e dar push:
-
-```bash
-cd /c/Projects/Interconsult/MyFood
-git remote add origin https://github.com/ricardodzd21/MyFood.git   # (já configurado pelo assistente)
-git branch -M main
-git push -u origin main
-```
-
-Se pedir login, use seu usuário GitHub + um Personal Access Token como senha
-(ou `gh auth login` se tiver o GitHub CLI).
-
----
-
-## 3. Comprar/apontar domínio
-
-DNS no registrador → registro A:
-- `SEU_DOMINIO` → `69.197.168.215`
-- `www.SEU_DOMINIO` → `69.197.168.215`
-
----
-
-## 4. Primeira instalação no servidor
-
-```bash
-ssh root@69.197.168.215
-cd /tmp
-git clone git@github.com:ricardodzd21/MyFood.git
-cd MyFood
-DOMAIN=seudominio.com ./deploy/setup.sh
-```
-
-O `setup.sh`:
-1. Clona o repo em `/www/wwwroot/myfood`
-2. Cria `server.env` (você edita: senha do Postgres, JwtSecret, Admin, Gemini opcional)
-3. Garante o database `MyFood` no Postgres
-4. Configura nginx do host + gera SSL Let's Encrypt
-5. `docker compose build && up -d`
-
-> As tabelas e os seeds (categorias, subcategorias, atributos) são criados **automaticamente** no boot da API (EF `Migrate()`).
-
----
-
-## 5. Atualizações
-
-Cada `git push origin main` dispara o GitHub Actions (SSH → pull → rebuild → up).
-
-Manual no servidor:
-```bash
-cd /www/wwwroot/myfood
-./deploy/update.sh    # pull + rebuild + up
-./deploy/restart.sh   # só restart (após editar server.env)
-```
-
----
-
-## 6. IA (opcional)
-
-Para ativar o "Analisar foto":
-1. Pegue uma chave grátis em https://aistudio.google.com/apikey
-2. No servidor, adicione ao `server.env`: `Gemini__ApiKey=SUA_CHAVE`
-3. `./deploy/restart.sh`
-
-Sem chave, o app funciona normalmente no preenchimento manual.
-
----
-
-## 7. Secrets do GitHub (resumo)
+Repo → **Settings → Secrets and variables → Actions**:
 
 | Secret | Valor |
 |--------|-------|
 | `SERVER_HOST` | `69.197.168.215` |
 | `SERVER_USER` | `root` |
-| `SSH_PRIVATE_KEY` | chave SSH privada (mesma dos outros) |
+| `SSH_PRIVATE_KEY` | a mesma chave SSH usada nos outros projetos |
 | `SERVER_PORT` | `22` (opcional) |
+
+## 2. server.env no servidor (uma vez)
+
+A pipeline **nunca** sobrescreve o `server.env` (ele guarda os secrets). Crie uma vez:
+
+```bash
+mkdir -p /www/wwwroot/myfood
+nano /www/wwwroot/myfood/server.env
+```
+
+Conteúdo (ver `server.env.example`) — ajuste a connection string p/ o mesmo Postgres dos outros projetos:
+
+```
+ConnectionStrings__DefaultConnection=Host=172.17.0.1;Port=35432;Database=MyFood;Username=postgres;Password=SENHA_DO_POSTGRES
+JwtSecret=uma-chave-longa-aleatoria-32+caracteres
+Admin__Email=seu-email@exemplo.com
+Admin__Password=sua-senha-forte
+AllowedOrigins__0=https://SEU_DOMINIO
+Gemini__ApiKey=            # opcional (chave grátis do Google AI Studio)
+Gemini__Model=gemini-2.0-flash
+```
+
+## 3. Publicar
+
+Só dar push na `main` (ou rodar o workflow manual em Actions → Deploy MyFood → Run workflow):
+
+```bash
+git push origin main
+```
+
+A pipeline: build front + API → SCP p/ `/www/wwwroot/myfood` → `docker compose build && up -d`.
+> No **primeiríssimo** deploy, se o `server.env` ainda não existir, o passo final falha de propósito avisando. Crie o `server.env` (passo 2) e rode o deploy de novo.
+
+## 4. Proxy + SSL no aaPanel (uma vez)
+
+No painel, crie o site do domínio do MyFood e configure como **proxy reverso** para `http://127.0.0.1:3004` (container `myfood-front`), depois emita o **Let's Encrypt** — exatamente como você fez com carlink / servicelink / goindaiatuba. O A record do domínio deve apontar para `69.197.168.215`.
+
+---
+
+## Portas usadas (evitar conflito)
+| Projeto | API | Front |
+|---------|-----|-------|
+| Carlink | 5031 | 3002 |
+| ServiceLink | 5032 | 3003 |
+| GoIndaiatuba | 5050 | 3050 |
+| **MyFood** | **5033** | **3004** |
+
+## IA (opcional)
+Preencha `Gemini__ApiKey` no `server.env` (chave grátis em https://aistudio.google.com/apikey) e rode o deploy. Sem chave, o botão "Analisar foto" não aparece e o app funciona no manual.

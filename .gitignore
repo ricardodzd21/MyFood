@@ -1,3 +1,6 @@
 server.env
 uploads/
 *.zip
+
+# pasta deploy/ é gerada pela pipeline (não versionar)
+deploy/

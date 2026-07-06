@@ -1,28 +1,139 @@
-name: Deploy
+name: Deploy MyFood
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: SSH deploy
-        uses: appleboy/ssh-action@v1.0.3
+      # ---------- Build Frontend ----------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: MyFood-front/package-lock.json
+
+      - name: Install & Build Frontend
+        working-directory: MyFood-front
+        run: |
+          npm ci
+          npm run build
+
+      # ---------- Build API ----------
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish API
+        working-directory: MyFood-api
+        run: |
+          rm -rf ./publish
+          dotnet publish -c Release -o ./publish
+
+      # ---------- Preparar pacote de deploy ----------
+      - name: Prepare deploy package
+        run: |
+          mkdir -p deploy/front deploy/api
+
+          cp -r MyFood-front/dist/* deploy/front/
+          cp MyFood-front/nginx.conf deploy/front/
+
+          cp -r MyFood-api/publish/* deploy/api/
+
+          # Dockerfile front (só empacota o build pronto)
+          cat > deploy/front/Dockerfile << 'EOF'
+          FROM nginx:alpine
+          COPY . /usr/share/nginx/html
+          COPY nginx.conf /etc/nginx/conf.d/default.conf
+          EXPOSE 80
+          CMD ["nginx", "-g", "daemon off;"]
+          EOF
+
+          # Dockerfile api (só empacota o publish pronto)
+          cat > deploy/api/Dockerfile << 'EOF'
+          FROM mcr.microsoft.com/dotnet/aspnet:8.0
+          WORKDIR /app
+          COPY . .
+          RUN mkdir -p /app/wwwroot/uploads
+          ENV ASPNETCORE_URLS=http://+:8080
+          EXPOSE 8080
+          ENTRYPOINT ["dotnet", "MyFood-api.dll"]
+          EOF
+
+          # docker-compose do servidor (env_file server.env criado 1x no servidor, nunca sobrescrito)
+          cat > deploy/docker-compose.yml << 'COMPOSEEOF'
+          services:
+            myfood-api:
+              build:
+                context: ./api
+                dockerfile: Dockerfile
+              container_name: myfood-api
+              env_file:
+                - server.env
+              environment:
+                - ASPNETCORE_ENVIRONMENT=Production
+              ports:
+                - "5033:8080"
+              volumes:
+                - ./uploads:/app/wwwroot/uploads
+              restart: unless-stopped
+
+            myfood-front:
+              build:
+                context: ./front
+                dockerfile: Dockerfile
+              container_name: myfood-front
+              ports:
+                - "3004:80"
+              depends_on:
+                - myfood-api
+              restart: unless-stopped
+          COMPOSEEOF
+
+          # Remove a indentação dos heredocs
+          sed -i 's/^          //' deploy/front/Dockerfile
+          sed -i 's/^          //' deploy/api/Dockerfile
+          sed -i 's/^          //' deploy/docker-compose.yml
+
+      # ---------- Upload para o servidor (via key SSH) ----------
+      - name: Upload files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "deploy/*"
+          target: /www/wwwroot/myfood
+          strip_components: 1
+          overwrite: true
+
+      # ---------- Subir containers ----------
+      - name: Start containers
+        uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
-            set -e
             cd /www/wwwroot/myfood
-            git pull
+            mkdir -p uploads
+            if [ ! -f server.env ]; then
+              echo "ERRO: server.env não encontrado! Crie uma vez com os secrets (DB, JWT, Admin, Gemini)."
+              exit 1
+            fi
+            docker compose down || true
             docker compose build --no-cache
             docker compose up -d
+            docker image prune -f
             docker compose ps
