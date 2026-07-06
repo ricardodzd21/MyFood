@@ -89,10 +89,17 @@ public class GeminiService
 
         var client = _httpFactory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(60);
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent";
         var json = JsonSerializer.Serialize(body);
 
-        var resp = await client.PostAsync(url, new StringContent(json, Encoding.UTF8, "application/json"));
+        // Envia a chave via header (recomendado, compatível com formato novo AQ.* e antigo AIza*)
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Add("x-goog-api-key", _apiKey);
+
+        var resp = await client.SendAsync(request);
         var respText = await resp.Content.ReadAsStringAsync();
         if (!resp.IsSuccessStatusCode)
             throw new Exception($"Gemini retornou {(int)resp.StatusCode}: {respText}");
