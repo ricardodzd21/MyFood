@@ -39,7 +39,7 @@ Admin__Email=seu-email@exemplo.com
 Admin__Password=sua-senha-forte
 AllowedOrigins__0=https://SEU_DOMINIO
 Gemini__ApiKey=            # opcional (chave grátis do Google AI Studio)
-Gemini__Model=gemini-2.0-flash
+Gemini__Model=gemini-2.5-flash
 ```
 
 ## 3. Publicar

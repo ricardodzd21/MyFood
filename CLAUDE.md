@@ -42,7 +42,7 @@ App **pessoal** para catalogar tudo que você consome (vinhos, cervejas, comidas
 
 ## IA — preencher item a partir da foto (opcional, gratuito)
 - Provedor: **Google Gemini Flash** (free tier). Chave grátis em https://aistudio.google.com/apikey
-- Config: `Gemini__ApiKey` (+ `Gemini__Model`, padrão `gemini-2.0-flash`). **Sem chave o app funciona normal**; com chave aparece o botão "Analisar foto" no formulário.
+- Config: `Gemini__ApiKey` (+ `Gemini__Model`, padrão `gemini-2.5-flash`). **Sem chave o app funciona normal**; com chave aparece o botão "Analisar foto" no formulário.
 - Fluxo: foto (multipart) → `POST /api/ai/analyze` → Gemini com a lista de categorias existentes → JSON `{ name, category, subcategory, description, attributes[] }` → o form é pré-preenchido para revisão. A **nota** e o **favorito** ficam sempre com o usuário.
 - `Services/GeminiService.cs` usa `responseSchema` (saída estruturada) e mapeia a categoria sugerida para uma existente pelo nome.
 

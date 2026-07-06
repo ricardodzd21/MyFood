@@ -15,7 +15,7 @@ public class GeminiService
     {
         _httpFactory = httpFactory;
         _apiKey = config["Gemini:ApiKey"];
-        _model = config["Gemini:Model"] ?? "gemini-2.0-flash";
+        _model = config["Gemini:Model"] ?? "gemini-2.5-flash";
     }
 
     public bool IsEnabled => !string.IsNullOrWhiteSpace(_apiKey);
