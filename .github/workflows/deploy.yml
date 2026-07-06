@@ -81,8 +81,8 @@ jobs:
                 - server.env
               environment:
                 - ASPNETCORE_ENVIRONMENT=Production
-              ports:
-                - "5033:8080"
+              expose:
+                - "8080"
               volumes:
                 - ./uploads:/app/wwwroot/uploads
               restart: unless-stopped
@@ -93,7 +93,7 @@ jobs:
                 dockerfile: Dockerfile
               container_name: myfood-front
               ports:
-                - "3004:80"
+                - "3021:80"
               depends_on:
                 - myfood-api
               restart: unless-stopped

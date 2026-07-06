@@ -11,8 +11,8 @@ App **pessoal** para catalogar tudo que você consome (vinhos, cervejas, comidas
 ## Portas
 | Serviço | Container | Porta |
 |---------|-----------|-------|
-| API | myfood-api | 5033 (host) → 8080 (container) |
-| Front | myfood-front | 3004 → 80 |
+| API | myfood-api | 8080 (interna, não exposta no host) |
+| Front | myfood-front | 3021 → 80 |
 | DB | Postgres Docker | 172.17.0.1:35432, Database=MyFood |
 
 ## Stack
@@ -55,7 +55,7 @@ App **pessoal** para catalogar tudo que você consome (vinhos, cervejas, comidas
 - Admin de dev: `ricardodzd21@gmail.com` / `200461` (fallback; sobreponha com `Admin:Email`/`Admin:Password`).
 
 ## Deploy (padrão InterConsult)
-- `docker compose up -d --build`. Front (3004) faz proxy `/api` e `/uploads` → `myfood-api:8080`.
+- `docker compose up -d --build`. Front (3021) faz proxy `/api` e `/uploads` → `myfood-api:8080`.
 - Secrets em `server.env` (ver `server.env.example`), nunca comitado.
 - Uploads persistidos em volume `./uploads`.
 

@@ -4,9 +4,9 @@ Mesmo modelo do Carlink: **a pipeline compila e publica**. O GitHub Actions buil
 
 - **Servidor**: `69.197.168.215` (aaPanel)
 - **Path**: `/www/wwwroot/myfood`
-- **Containers**: `myfood-api` (host **5033** → 8080), `myfood-front` (host **3004** → 80)
+- **Containers**: `myfood-api` (porta 8080 interna, **não exposta no host**), `myfood-front` (host **3021** → 80)
 - **Banco**: Postgres do host — a API cria o database `MyFood` e as tabelas sozinha no boot (EF `Migrate()`)
-- **Proxy + SSL**: feitos pelo **aaPanel** (site do domínio → proxy reverso p/ `127.0.0.1:3004`), igual aos outros sites
+- **Proxy + SSL**: feitos pelo **aaPanel** (site do domínio → proxy reverso p/ `127.0.0.1:3021`), igual aos outros sites
 
 ---
 
@@ -55,7 +55,7 @@ A pipeline: build front + API → SCP p/ `/www/wwwroot/myfood` → `docker compo
 
 ## 4. Proxy + SSL no aaPanel (uma vez)
 
-No painel, crie o site do domínio do MyFood e configure como **proxy reverso** para `http://127.0.0.1:3004` (container `myfood-front`), depois emita o **Let's Encrypt** — exatamente como você fez com carlink / servicelink / goindaiatuba. O A record do domínio deve apontar para `69.197.168.215`.
+No painel, crie o site do domínio do MyFood e configure como **proxy reverso** para `http://127.0.0.1:3021` (container `myfood-front`), depois emita o **Let's Encrypt** — exatamente como você fez com carlink / servicelink / goindaiatuba. O A record do domínio deve apontar para `69.197.168.215`.
 
 ---
 
@@ -65,7 +65,7 @@ No painel, crie o site do domínio do MyFood e configure como **proxy reverso** 
 | Carlink | 5031 | 3002 |
 | ServiceLink | 5032 | 3003 |
 | GoIndaiatuba | 5050 | 3050 |
-| **MyFood** | **5033** | **3004** |
+| **MyFood** | interna (não exposta) | **3021** |
 
 ## IA (opcional)
 Preencha `Gemini__ApiKey` no `server.env` (chave grátis em https://aistudio.google.com/apikey) e rode o deploy. Sem chave, o botão "Analisar foto" não aparece e o app funciona no manual.
