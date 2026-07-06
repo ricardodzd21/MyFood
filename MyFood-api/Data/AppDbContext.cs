@@ -91,6 +91,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
             entity.Property(e => e.SubcategoryId).HasColumnName("subcategory_id");
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(5000);
+            entity.Property(e => e.City).HasColumnName("city").HasMaxLength(150);
+            entity.Property(e => e.Establishment).HasColumnName("establishment").HasMaxLength(200);
             entity.Property(e => e.Rating).HasColumnName("rating").HasDefaultValue(0);
             entity.Property(e => e.IsFavorite).HasColumnName("is_favorite").HasDefaultValue(false);
             entity.Property(e => e.ConsumedAt).HasColumnName("consumed_at");

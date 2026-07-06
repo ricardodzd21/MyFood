@@ -22,6 +22,8 @@ export default function ItemForm() {
   const [categoryId, setCategoryId] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
+  const [city, setCity] = useState('')
+  const [establishment, setEstablishment] = useState('')
   const [rating, setRating] = useState(0)
   const [isFavorite, setIsFavorite] = useState(false)
   const [consumedAt, setConsumedAt] = useState('')
@@ -38,7 +40,8 @@ export default function ItemForm() {
       api.get<Item>(`/api/items/${id}`).then((r) => {
         const i = r.data
         setName(i.Name); setCategoryId(i.CategoryId); setSubcategoryId(i.SubcategoryId ?? '')
-        setDescription(i.Description ?? ''); setRating(i.Rating); setIsFavorite(i.IsFavorite)
+        setDescription(i.Description ?? ''); setCity(i.City ?? ''); setEstablishment(i.Establishment ?? '')
+        setRating(i.Rating); setIsFavorite(i.IsFavorite)
         setConsumedAt(i.ConsumedAt ? i.ConsumedAt.slice(0, 10) : '')
         setPhotos(i.Photos.map((p) => p.Url)); setMainPhoto(Math.max(0, i.Photos.findIndex((p) => p.IsMain)))
         setAttributes(i.Attributes.length ? i.Attributes : [])
@@ -83,21 +86,31 @@ export default function ItemForm() {
       const ai = r.data
       if (ai.name) setName(ai.name)
       if (ai.description) setDescription(ai.description)
+      if (ai.establishment) setEstablishment(ai.establishment)
+      // Atributos: o Gemini devolve {name,value} em minúsculo -> mapeia p/ {Name,Value}
+      const aiAttrs = (ai.attributes ?? [])
+        .map((a) => ({ Name: a.name ?? '', Value: a.value ?? '' }))
+        .filter((a) => a.Name && a.Value)
+      if (aiAttrs.length) setAttributes(aiAttrs)
       // Casar categoria pelo nome
       if (ai.category) {
         const match = categories.find((c) => c.Name.toLowerCase() === ai.category!.toLowerCase())
         if (match) {
           setCategoryId(match.Id)
           if (ai.subcategory) {
-            const sub = match.Subcategories.find((s) => s.Name.toLowerCase() === ai.subcategory!.toLowerCase())
+            const t = ai.subcategory.toLowerCase().trim()
+            const sub =
+              match.Subcategories.find((s) => s.Name.toLowerCase() === t) ||
+              match.Subcategories.find((s) => s.Name.toLowerCase().includes(t) || t.includes(s.Name.toLowerCase()))
             if (sub) setSubcategoryId(sub.Id)
+          }
+          // Se a IA não trouxe atributos, mostra os sugeridos da categoria pra preencher
+          if (!aiAttrs.length && match.SuggestedAttributes.length) {
+            setAttributes(match.SuggestedAttributes.map((n) => ({ Name: n, Value: '' })))
           }
         } else {
           setAiMsg(`Sugestão de categoria: "${ai.category}" (crie em Categorias, se quiser). Demais campos preenchidos.`)
         }
-      }
-      if (ai.attributes?.length) {
-        setAttributes(ai.attributes.filter((a) => a.Name && a.Value))
       }
       // Usa a mesma foto como imagem do item
       await uploadFiles(dataTransferOf(file))
@@ -129,6 +142,8 @@ export default function ItemForm() {
       CategoryId: categoryId,
       SubcategoryId: subcategoryId || null,
       Description: description || null,
+      City: city || null,
+      Establishment: establishment || null,
       Rating: rating,
       IsFavorite: isFavorite,
       ConsumedAt: consumedAt ? new Date(consumedAt).toISOString() : null,
@@ -234,6 +249,18 @@ export default function ItemForm() {
         <div>
           <label className="block text-sm font-medium mb-1">Consumido em</label>
           <input type="date" value={consumedAt} onChange={(e) => setConsumedAt(e.target.value)} className="border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+      </div>
+
+      {/* Onde consumi */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Cidade <span className="text-stone-400">(onde consumi)</span></label>
+          <input value={city} onChange={(e) => setCity(e.target.value)} className="w-full border border-stone-300 rounded-lg px-3 py-2" placeholder="Ex: Campinas" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Estabelecimento</label>
+          <input value={establishment} onChange={(e) => setEstablishment(e.target.value)} className="w-full border border-stone-300 rounded-lg px-3 py-2" placeholder="Ex: Bar do Zé" />
         </div>
       </div>
 

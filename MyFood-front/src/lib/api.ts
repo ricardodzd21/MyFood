@@ -71,6 +71,8 @@ export interface Item {
   SubcategoryId?: string
   SubcategoryName?: string
   Description?: string
+  City?: string
+  Establishment?: string
   Rating: number
   IsFavorite: boolean
   ConsumedAt?: string
@@ -89,11 +91,13 @@ export interface Stats {
   RecentItems: Item[]
 }
 
-// Resultado da analise por IA
+// Resultado da analise por IA (Gemini devolve campos em minúsculo)
 export interface AiResult {
   name?: string
   category?: string
   subcategory?: string
+  establishment?: string
+  city?: string
   description?: string
-  attributes?: Attribute[]
+  attributes?: { name: string; value: string }[]
 }

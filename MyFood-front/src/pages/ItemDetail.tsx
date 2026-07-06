@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Heart, Pencil, Trash2, ArrowLeft, Calendar } from 'lucide-react'
+import { Heart, Pencil, Trash2, ArrowLeft, Calendar, MapPin } from 'lucide-react'
 import api, { type Item } from '../lib/api'
 import StarRating from '../components/StarRating'
 
@@ -72,8 +72,14 @@ export default function ItemDetail() {
             </button>
           </div>
 
-          {item.ConsumedAt && (
+          {(item.Establishment || item.City) && (
             <p className="flex items-center gap-1.5 text-sm text-stone-500 mt-3">
+              <MapPin size={14} /> {[item.Establishment, item.City].filter(Boolean).join(' · ')}
+            </p>
+          )}
+
+          {item.ConsumedAt && (
+            <p className="flex items-center gap-1.5 text-sm text-stone-500 mt-1">
               <Calendar size={14} /> Consumido em {new Date(item.ConsumedAt).toLocaleDateString('pt-BR')}
             </p>
           )}

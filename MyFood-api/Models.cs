@@ -66,6 +66,8 @@ public class Item
     public Guid CategoryId { get; set; }
     public Guid? SubcategoryId { get; set; }
     public string? Description { get; set; }              // opcional
+    public string? City { get; set; }                     // cidade onde consumiu (texto livre)
+    public string? Establishment { get; set; }            // estabelecimento (texto livre, p/ comidas)
     public int Rating { get; set; }                       // 0-5 estrelas
     public bool IsFavorite { get; set; }
     public DateTime? ConsumedAt { get; set; }             // quando consumiu (opcional)
@@ -151,6 +153,8 @@ public class ItemRequest
     public Guid CategoryId { get; set; }
     public Guid? SubcategoryId { get; set; }
     public string? Description { get; set; }
+    public string? City { get; set; }
+    public string? Establishment { get; set; }
     public int Rating { get; set; }
     public bool IsFavorite { get; set; }
     public DateTime? ConsumedAt { get; set; }
@@ -215,6 +219,8 @@ public class ItemResponse
     public Guid? SubcategoryId { get; set; }
     public string? SubcategoryName { get; set; }
     public string? Description { get; set; }
+    public string? City { get; set; }
+    public string? Establishment { get; set; }
     public int Rating { get; set; }
     public bool IsFavorite { get; set; }
     public DateTime? ConsumedAt { get; set; }

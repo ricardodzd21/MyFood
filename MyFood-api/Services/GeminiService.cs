@@ -27,17 +27,21 @@ public class GeminiService
         if (!IsEnabled)
             throw new InvalidOperationException("IA não configurada (Gemini:ApiKey ausente).");
 
-        var catList = string.Join(", ", categories);
+        var catList = string.Join("\n", categories.Select(c => "- " + c));
         var prompt =
             "Você é um assistente que cataloga comidas e bebidas a partir de uma foto.\n" +
-            "Analise a imagem (pode ser um rótulo de bebida, uma garrafa ou um prato de comida) e extraia as informações.\n" +
-            $"As categorias existentes são: [{catList}]. Escolha a mais adequada em 'category'; se nenhuma servir, sugira um nome novo.\n" +
-            "Para 'subcategory' sugira algo específico (ex: Tinto Suave, IPA, Massa, Sobremesa).\n" +
-            "Em 'attributes' inclua pares nome/valor relevantes lidos ou inferidos da imagem: " +
-            "para bebidas use Teor Alcoólico, Origem, Safra, Uva quando visíveis no rótulo; " +
-            "para comidas use Ingredientes e Estabelecimento (só se aparecer na foto).\n" +
-            "Escreva os valores em português. Não invente preço nem nota. Se não tiver certeza de um campo, omita-o dos attributes.\n" +
-            "'description' deve ser uma frase curta descrevendo o item.";
+            "Analise a imagem (pode ser um rótulo de bebida, uma garrafa/lata, um chope ou um prato de comida) e extraia as informações.\n\n" +
+            "Categorias existentes (com suas subcategorias):\n" + catList + "\n\n" +
+            "Regras:\n" +
+            "- 'category': escolha EXATAMENTE uma da lista acima. Se nenhuma servir, sugira um nome novo.\n" +
+            "- 'subcategory': escolha EXATAMENTE uma das subcategorias listadas para a categoria escolhida (copie o nome igual). Se nenhuma servir, sugira uma curta.\n" +
+            "- 'attributes': SEMPRE inclua os atributos relevantes lidos ou inferidos, como pares nome/valor. " +
+            "Para bebidas: Teor Alcoólico, Origem, Uva, Safra, Volume, IBU (quando fizer sentido). " +
+            "Para comidas: Ingredientes. Preencha o que der pra deduzir mesmo sem estar escrito (ex: chope Pilsen ~4,5% de teor).\n" +
+            "- 'establishment': nome do restaurante/bar SÓ se aparecer na foto (menu, placa, copo). Senão, deixe vazio.\n" +
+            "- 'city': deixe vazio (o usuário preenche).\n" +
+            "- 'description': uma frase curta descrevendo o item.\n" +
+            "Escreva tudo em português. Não invente preço nem nota.";
 
         // Schema de saida estruturada
         var responseSchema = new
@@ -48,6 +52,8 @@ public class GeminiService
                 name = new { type = "string" },
                 category = new { type = "string" },
                 subcategory = new { type = "string" },
+                establishment = new { type = "string" },
+                city = new { type = "string" },
                 description = new { type = "string" },
                 attributes = new
                 {

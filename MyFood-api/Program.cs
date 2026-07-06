@@ -116,6 +116,8 @@ ItemResponse MapItem(Item i) => new()
     SubcategoryId = i.SubcategoryId,
     SubcategoryName = i.Subcategory?.Name,
     Description = i.Description,
+    City = i.City,
+    Establishment = i.Establishment,
     Rating = i.Rating,
     IsFavorite = i.IsFavorite,
     ConsumedAt = i.ConsumedAt,
@@ -279,6 +281,8 @@ app.MapPost("/api/items", async (ItemRequest req, AppDbContext db) =>
         CategoryId = req.CategoryId,
         SubcategoryId = req.SubcategoryId,
         Description = req.Description,
+        City = req.City,
+        Establishment = req.Establishment,
         Rating = Math.Clamp(req.Rating, 0, 5),
         IsFavorite = req.IsFavorite,
         ConsumedAt = req.ConsumedAt,
@@ -308,6 +312,8 @@ app.MapPut("/api/items/{id:guid}", async (Guid id, ItemRequest req, AppDbContext
     item.CategoryId = req.CategoryId;
     item.SubcategoryId = req.SubcategoryId;
     item.Description = req.Description;
+    item.City = req.City;
+    item.Establishment = req.Establishment;
     item.Rating = Math.Clamp(req.Rating, 0, 5);
     item.IsFavorite = req.IsFavorite;
     item.ConsumedAt = req.ConsumedAt;
@@ -400,10 +406,11 @@ app.MapPost("/api/ai/analyze", async (HttpRequest request, GeminiService ai, App
     await file.CopyToAsync(ms);
     var mime = string.IsNullOrWhiteSpace(file.ContentType) ? "image/jpeg" : file.ContentType;
 
-    var categories = await db.Categories.OrderBy(c => c.Order).Select(c => c.Name).ToListAsync();
+    var cats = await db.Categories.Include(c => c.Subcategories).OrderBy(c => c.Order).ToListAsync();
+    var catalog = cats.Select(c => $"{c.Name} (subcategorias: {string.Join(", ", c.Subcategories.OrderBy(s => s.Order).Select(s => s.Name))})");
     try
     {
-        var result = await ai.AnalyzeAsync(ms.ToArray(), mime, categories);
+        var result = await ai.AnalyzeAsync(ms.ToArray(), mime, catalog);
         return Results.Ok(result);
     }
     catch (Exception ex)
