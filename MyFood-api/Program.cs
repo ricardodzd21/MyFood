@@ -13,7 +13,13 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 var builder = WebApplication.CreateBuilder(args);
 
 // JWT
-var jwtSecret = builder.Configuration["JwtSecret"] ?? "MyFood-SecretKey-2024-MinLength32Characters!";
+var jwtSecret = builder.Configuration["JwtSecret"];
+if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+{
+    if (builder.Environment.IsProduction())
+        throw new InvalidOperationException("JwtSecret ausente ou curto (<32 chars). Defina JwtSecret no server.env.");
+    jwtSecret = "MyFood-DEV-SecretKey-Local-MinLength32Chars!"; // fallback só p/ desenvolvimento
+}
 var key = Encoding.ASCII.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -63,11 +69,20 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 
-    var adminEmail = builder.Configuration["Admin:Email"] ?? "ricardodzd21@gmail.com";
-    var adminPassword = builder.Configuration["Admin:Password"] ?? "200461";
-    if (!db.Users.Any(u => u.Email == adminEmail))
+    var adminEmail = builder.Configuration["Admin:Email"];
+    var adminPassword = builder.Configuration["Admin:Password"];
+    if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
     {
-        db.Users.Add(new User
+        if (app.Environment.IsProduction())
+            throw new InvalidOperationException("Admin:Email/Password ausentes. Defina Admin__Email e Admin__Password no server.env.");
+        adminEmail ??= "admin@myfood.local";
+        adminPassword ??= "admin123";
+    }
+
+    var admin = db.Users.FirstOrDefault(u => u.Email == adminEmail);
+    if (admin == null)
+    {
+        admin = new User
         {
             Id = Guid.NewGuid(),
             Name = "Admin",
@@ -77,7 +92,16 @@ using (var scope = app.Services.CreateScope())
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
-        });
+        };
+        db.Users.Add(admin);
+        db.SaveChanges();
+    }
+
+    // Itens antigos sem dono passam a pertencer ao admin
+    var orphans = db.Items.Where(i => i.UserId == null).ToList();
+    if (orphans.Count > 0)
+    {
+        foreach (var it in orphans) it.UserId = admin.Id;
         db.SaveChanges();
     }
 }
@@ -106,6 +130,8 @@ Guid? GetUserId(ClaimsPrincipal principal)
     return Guid.TryParse(id, out var g) ? g : null;
 }
 
+bool IsAdminUser(ClaimsPrincipal principal) => principal.FindFirstValue("is_admin") == "True";
+
 ItemResponse MapItem(Item i) => new()
 {
     Id = i.Id,
@@ -116,9 +142,14 @@ ItemResponse MapItem(Item i) => new()
     SubcategoryId = i.SubcategoryId,
     SubcategoryName = i.Subcategory?.Name,
     Description = i.Description,
+    Observations = i.Observations,
     City = i.City,
+    State = i.State,
     Establishment = i.Establishment,
     Rating = i.Rating,
+    RatingCleanliness = i.RatingCleanliness,
+    RatingService = i.RatingService,
+    RatingAmbiance = i.RatingAmbiance,
     IsFavorite = i.IsFavorite,
     ConsumedAt = i.ConsumedAt,
     MainPhotoUrl = i.Photos.OrderByDescending(p => p.IsMain).ThenBy(p => p.Order).FirstOrDefault()?.Url,
@@ -148,26 +179,55 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db) =>
     });
 });
 
+app.MapPost("/api/auth/register", async (RegisterRequest req, AppDbContext db) =>
+{
+    var email = req.Email.Trim().ToLower();
+    if (await db.Users.AnyAsync(u => u.Email == email))
+        return Results.BadRequest(new { message = "Já existe uma conta com esse email" });
+
+    var user = new User
+    {
+        Id = Guid.NewGuid(),
+        Name = req.Name.Trim(),
+        Email = email,
+        Password = BCrypt.Net.BCrypt.HashPassword(req.Password),
+        IsAdmin = false,
+        IsActive = true,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    db.Users.Add(user);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new AuthResponse
+    {
+        message = "Conta criada",
+        token = GenerateToken(user),
+        user = new UserResponse { Id = user.Id, Name = user.Name, Email = user.Email, IsAdmin = user.IsAdmin }
+    });
+});
+
 app.MapGet("/api/auth/me", async (ClaimsPrincipal principal, AppDbContext db) =>
 {
     var uid = GetUserId(principal);
     if (uid == null) return Results.Unauthorized();
     var user = await db.Users.FindAsync(uid.Value);
-    if (user == null) return Results.Unauthorized();
+    if (user == null || !user.IsActive) return Results.Unauthorized();
     return Results.Ok(new UserResponse { Id = user.Id, Name = user.Name, Email = user.Email, IsAdmin = user.IsAdmin });
 }).RequireAuthorization();
 
 // ==================== CATEGORIES ====================
-app.MapGet("/api/categories", async (AppDbContext db) =>
+app.MapGet("/api/categories", async (AppDbContext db, ClaimsPrincipal principal) =>
 {
+    var uid = GetUserId(principal);
     var cats = await db.Categories
         .Include(c => c.Subcategories)
         .Include(c => c.SuggestedAttributes)
         .OrderBy(c => c.Order).ThenBy(c => c.Name)
         .ToListAsync();
 
-    var counts = await db.Items.GroupBy(i => i.CategoryId).Select(g => new { g.Key, Count = g.Count() }).ToListAsync();
-    var subCounts = await db.Items.Where(i => i.SubcategoryId != null)
+    var counts = await db.Items.Where(i => i.UserId == uid).GroupBy(i => i.CategoryId).Select(g => new { g.Key, Count = g.Count() }).ToListAsync();
+    var subCounts = await db.Items.Where(i => i.UserId == uid && i.SubcategoryId != null)
         .GroupBy(i => i.SubcategoryId!.Value).Select(g => new { g.Key, Count = g.Count() }).ToListAsync();
 
     return Results.Ok(cats.Select(c => new CategoryResponse
@@ -183,8 +243,9 @@ app.MapGet("/api/categories", async (AppDbContext db) =>
     }));
 }).RequireAuthorization();
 
-app.MapPost("/api/categories", async (CategoryRequest req, AppDbContext db) =>
+app.MapPost("/api/categories", async (CategoryRequest req, AppDbContext db, ClaimsPrincipal principal) =>
 {
+    if (!IsAdminUser(principal)) return Results.Forbid();
     var cat = new Category { Name = req.Name, Icon = req.Icon, Color = req.Color, Order = req.Order, CreatedAt = DateTime.UtcNow };
     db.Categories.Add(cat);
     foreach (var (name, idx) in req.SuggestedAttributes.Where(s => !string.IsNullOrWhiteSpace(s)).Select((s, i) => (s, i)))
@@ -193,8 +254,9 @@ app.MapPost("/api/categories", async (CategoryRequest req, AppDbContext db) =>
     return Results.Ok(new { cat.Id });
 }).RequireAuthorization();
 
-app.MapPut("/api/categories/{id:guid}", async (Guid id, CategoryRequest req, AppDbContext db) =>
+app.MapPut("/api/categories/{id:guid}", async (Guid id, CategoryRequest req, AppDbContext db, ClaimsPrincipal principal) =>
 {
+    if (!IsAdminUser(principal)) return Results.Forbid();
     var cat = await db.Categories.Include(c => c.SuggestedAttributes).FirstOrDefaultAsync(c => c.Id == id);
     if (cat == null) return Results.NotFound();
     cat.Name = req.Name; cat.Icon = req.Icon; cat.Color = req.Color; cat.Order = req.Order;
@@ -205,8 +267,9 @@ app.MapPut("/api/categories/{id:guid}", async (Guid id, CategoryRequest req, App
     return Results.Ok();
 }).RequireAuthorization();
 
-app.MapDelete("/api/categories/{id:guid}", async (Guid id, AppDbContext db) =>
+app.MapDelete("/api/categories/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal principal) =>
 {
+    if (!IsAdminUser(principal)) return Results.Forbid();
     var cat = await db.Categories.FindAsync(id);
     if (cat == null) return Results.NotFound();
     if (await db.Items.AnyAsync(i => i.CategoryId == id))
@@ -217,16 +280,18 @@ app.MapDelete("/api/categories/{id:guid}", async (Guid id, AppDbContext db) =>
 }).RequireAuthorization();
 
 // ==================== SUBCATEGORIES ====================
-app.MapPost("/api/subcategories", async (SubcategoryRequest req, AppDbContext db) =>
+app.MapPost("/api/subcategories", async (SubcategoryRequest req, AppDbContext db, ClaimsPrincipal principal) =>
 {
+    if (!IsAdminUser(principal)) return Results.Forbid();
     var sub = new Subcategory { CategoryId = req.CategoryId, Name = req.Name, Order = req.Order, CreatedAt = DateTime.UtcNow };
     db.Subcategories.Add(sub);
     await db.SaveChangesAsync();
     return Results.Ok(new { sub.Id });
 }).RequireAuthorization();
 
-app.MapPut("/api/subcategories/{id:guid}", async (Guid id, SubcategoryRequest req, AppDbContext db) =>
+app.MapPut("/api/subcategories/{id:guid}", async (Guid id, SubcategoryRequest req, AppDbContext db, ClaimsPrincipal principal) =>
 {
+    if (!IsAdminUser(principal)) return Results.Forbid();
     var sub = await db.Subcategories.FindAsync(id);
     if (sub == null) return Results.NotFound();
     sub.Name = req.Name; sub.Order = req.Order; sub.CategoryId = req.CategoryId;
@@ -234,8 +299,9 @@ app.MapPut("/api/subcategories/{id:guid}", async (Guid id, SubcategoryRequest re
     return Results.Ok();
 }).RequireAuthorization();
 
-app.MapDelete("/api/subcategories/{id:guid}", async (Guid id, AppDbContext db) =>
+app.MapDelete("/api/subcategories/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal principal) =>
 {
+    if (!IsAdminUser(principal)) return Results.Forbid();
     var sub = await db.Subcategories.FindAsync(id);
     if (sub == null) return Results.NotFound();
     db.Subcategories.Remove(sub);
@@ -244,9 +310,10 @@ app.MapDelete("/api/subcategories/{id:guid}", async (Guid id, AppDbContext db) =
 }).RequireAuthorization();
 
 // ==================== ITEMS ====================
-app.MapGet("/api/items", async (AppDbContext db, Guid? category, Guid? subcategory, bool? favorite, int? minRating, string? q, string? sort) =>
+app.MapGet("/api/items", async (AppDbContext db, ClaimsPrincipal principal, Guid? category, Guid? subcategory, bool? favorite, int? minRating, string? q, string? sort) =>
 {
-    var query = ItemQuery(db);
+    var uid = GetUserId(principal);
+    var query = ItemQuery(db).Where(i => i.UserId == uid);
     if (category.HasValue) query = query.Where(i => i.CategoryId == category.Value);
     if (subcategory.HasValue) query = query.Where(i => i.SubcategoryId == subcategory.Value);
     if (favorite == true) query = query.Where(i => i.IsFavorite);
@@ -254,7 +321,11 @@ app.MapGet("/api/items", async (AppDbContext db, Guid? category, Guid? subcatego
     if (!string.IsNullOrWhiteSpace(q))
     {
         var term = q.ToLower();
-        query = query.Where(i => i.Name.ToLower().Contains(term) || (i.Description != null && i.Description.ToLower().Contains(term)));
+        query = query.Where(i =>
+            i.Name.ToLower().Contains(term) ||
+            (i.Description != null && i.Description.ToLower().Contains(term)) ||
+            (i.City != null && i.City.ToLower().Contains(term)) ||
+            (i.Establishment != null && i.Establishment.ToLower().Contains(term)));
     }
     query = sort switch
     {
@@ -267,23 +338,32 @@ app.MapGet("/api/items", async (AppDbContext db, Guid? category, Guid? subcatego
     return Results.Ok(items.Select(MapItem));
 }).RequireAuthorization();
 
-app.MapGet("/api/items/{id:guid}", async (Guid id, AppDbContext db) =>
+app.MapGet("/api/items/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal principal) =>
 {
-    var item = await ItemQuery(db).FirstOrDefaultAsync(i => i.Id == id);
+    var uid = GetUserId(principal);
+    var item = await ItemQuery(db).FirstOrDefaultAsync(i => i.Id == id && i.UserId == uid);
     return item == null ? Results.NotFound() : Results.Ok(MapItem(item));
 }).RequireAuthorization();
 
-app.MapPost("/api/items", async (ItemRequest req, AppDbContext db) =>
+app.MapPost("/api/items", async (ItemRequest req, AppDbContext db, ClaimsPrincipal principal) =>
 {
+    var uid = GetUserId(principal);
+    if (uid == null) return Results.Unauthorized();
     var item = new Item
     {
+        UserId = uid,
         Name = req.Name,
         CategoryId = req.CategoryId,
         SubcategoryId = req.SubcategoryId,
         Description = req.Description,
+        Observations = req.Observations,
         City = req.City,
+        State = req.State,
         Establishment = req.Establishment,
         Rating = Math.Clamp(req.Rating, 0, 5),
+        RatingCleanliness = Math.Clamp(req.RatingCleanliness, 0, 5),
+        RatingService = Math.Clamp(req.RatingService, 0, 5),
+        RatingAmbiance = Math.Clamp(req.RatingAmbiance, 0, 5),
         IsFavorite = req.IsFavorite,
         ConsumedAt = req.ConsumedAt,
         CreatedAt = DateTime.UtcNow,
@@ -303,18 +383,24 @@ app.MapPost("/api/items", async (ItemRequest req, AppDbContext db) =>
     return Results.Ok(new { item.Id });
 }).RequireAuthorization();
 
-app.MapPut("/api/items/{id:guid}", async (Guid id, ItemRequest req, AppDbContext db) =>
+app.MapPut("/api/items/{id:guid}", async (Guid id, ItemRequest req, AppDbContext db, ClaimsPrincipal principal) =>
 {
-    var item = await db.Items.Include(i => i.Photos).Include(i => i.Attributes).FirstOrDefaultAsync(i => i.Id == id);
+    var uid = GetUserId(principal);
+    var item = await db.Items.Include(i => i.Photos).Include(i => i.Attributes).FirstOrDefaultAsync(i => i.Id == id && i.UserId == uid);
     if (item == null) return Results.NotFound();
 
     item.Name = req.Name;
     item.CategoryId = req.CategoryId;
     item.SubcategoryId = req.SubcategoryId;
     item.Description = req.Description;
+    item.Observations = req.Observations;
     item.City = req.City;
+    item.State = req.State;
     item.Establishment = req.Establishment;
     item.Rating = Math.Clamp(req.Rating, 0, 5);
+    item.RatingCleanliness = Math.Clamp(req.RatingCleanliness, 0, 5);
+    item.RatingService = Math.Clamp(req.RatingService, 0, 5);
+    item.RatingAmbiance = Math.Clamp(req.RatingAmbiance, 0, 5);
     item.IsFavorite = req.IsFavorite;
     item.ConsumedAt = req.ConsumedAt;
     item.UpdatedAt = DateTime.UtcNow;
@@ -332,9 +418,10 @@ app.MapPut("/api/items/{id:guid}", async (Guid id, ItemRequest req, AppDbContext
     return Results.Ok();
 }).RequireAuthorization();
 
-app.MapPost("/api/items/{id:guid}/toggle-favorite", async (Guid id, AppDbContext db) =>
+app.MapPost("/api/items/{id:guid}/toggle-favorite", async (Guid id, AppDbContext db, ClaimsPrincipal principal) =>
 {
-    var item = await db.Items.FindAsync(id);
+    var uid = GetUserId(principal);
+    var item = await db.Items.FirstOrDefaultAsync(i => i.Id == id && i.UserId == uid);
     if (item == null) return Results.NotFound();
     item.IsFavorite = !item.IsFavorite;
     item.UpdatedAt = DateTime.UtcNow;
@@ -342,9 +429,10 @@ app.MapPost("/api/items/{id:guid}/toggle-favorite", async (Guid id, AppDbContext
     return Results.Ok(new { item.IsFavorite });
 }).RequireAuthorization();
 
-app.MapDelete("/api/items/{id:guid}", async (Guid id, AppDbContext db) =>
+app.MapDelete("/api/items/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal principal) =>
 {
-    var item = await db.Items.FindAsync(id);
+    var uid = GetUserId(principal);
+    var item = await db.Items.FirstOrDefaultAsync(i => i.Id == id && i.UserId == uid);
     if (item == null) return Results.NotFound();
     db.Items.Remove(item);
     await db.SaveChangesAsync();
@@ -352,17 +440,19 @@ app.MapDelete("/api/items/{id:guid}", async (Guid id, AppDbContext db) =>
 }).RequireAuthorization();
 
 // ==================== STATS ====================
-app.MapGet("/api/stats", async (AppDbContext db) =>
+app.MapGet("/api/stats", async (AppDbContext db, ClaimsPrincipal principal) =>
 {
-    var total = await db.Items.CountAsync();
-    var favs = await db.Items.CountAsync(i => i.IsFavorite);
+    var uid = GetUserId(principal);
+    var mine = db.Items.Where(i => i.UserId == uid);
+    var total = await mine.CountAsync();
+    var favs = await mine.CountAsync(i => i.IsFavorite);
     var cats = await db.Categories.CountAsync();
-    var avg = total > 0 ? await db.Items.AverageAsync(i => (double)i.Rating) : 0;
-    var byCat = await db.Items.Include(i => i.Category)
+    var avg = total > 0 ? await mine.AverageAsync(i => (double)i.Rating) : 0;
+    var byCat = await mine.Include(i => i.Category)
         .GroupBy(i => new { i.Category.Name, i.Category.Icon })
         .Select(g => new CategoryCount { Name = g.Key.Name, Icon = g.Key.Icon, Count = g.Count() })
         .OrderByDescending(c => c.Count).ToListAsync();
-    var recent = await ItemQuery(db).OrderByDescending(i => i.CreatedAt).Take(6).ToListAsync();
+    var recent = await ItemQuery(db).Where(i => i.UserId == uid).OrderByDescending(i => i.CreatedAt).Take(6).ToListAsync();
 
     return Results.Ok(new StatsResponse
     {
@@ -388,6 +478,47 @@ app.MapPost("/api/upload", async (HttpRequest request) =>
         await file.CopyToAsync(stream);
 
     return Results.Ok(new { url = $"/uploads/{fileName}" });
+}).RequireAuthorization();
+
+// ==================== ADMIN — USUÁRIOS ====================
+app.MapGet("/api/admin/users", async (AppDbContext db, ClaimsPrincipal principal) =>
+{
+    if (!IsAdminUser(principal)) return Results.Forbid();
+    var counts = await db.Items.GroupBy(i => i.UserId).Select(g => new { g.Key, Count = g.Count() }).ToListAsync();
+    var users = await db.Users.OrderByDescending(u => u.CreatedAt).ToListAsync();
+    return Results.Ok(users.Select(u => new UserAdminResponse
+    {
+        Id = u.Id, Name = u.Name, Email = u.Email, IsAdmin = u.IsAdmin, IsActive = u.IsActive,
+        ItemCount = counts.FirstOrDefault(c => c.Key == u.Id)?.Count ?? 0,
+        CreatedAt = u.CreatedAt
+    }));
+}).RequireAuthorization();
+
+app.MapPost("/api/admin/users/{id:guid}/toggle-active", async (Guid id, AppDbContext db, ClaimsPrincipal principal) =>
+{
+    if (!IsAdminUser(principal)) return Results.Forbid();
+    var me = GetUserId(principal);
+    if (id == me) return Results.BadRequest(new { message = "Você não pode bloquear a própria conta" });
+    var user = await db.Users.FindAsync(id);
+    if (user == null) return Results.NotFound();
+    if (user.IsAdmin) return Results.BadRequest(new { message = "Não é possível bloquear um admin" });
+    user.IsActive = !user.IsActive;
+    user.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok(new { user.IsActive });
+}).RequireAuthorization();
+
+app.MapDelete("/api/admin/users/{id:guid}", async (Guid id, AppDbContext db, ClaimsPrincipal principal) =>
+{
+    if (!IsAdminUser(principal)) return Results.Forbid();
+    var me = GetUserId(principal);
+    if (id == me) return Results.BadRequest(new { message = "Você não pode excluir a própria conta" });
+    var user = await db.Users.FindAsync(id);
+    if (user == null) return Results.NotFound();
+    if (user.IsAdmin) return Results.BadRequest(new { message = "Não é possível excluir um admin" });
+    db.Users.Remove(user); // itens do usuário caem por cascade
+    await db.SaveChangesAsync();
+    return Results.Ok();
 }).RequireAuthorization();
 
 // ==================== IA (Gemini) ====================

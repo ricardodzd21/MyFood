@@ -62,18 +62,26 @@ public class CategoryAttribute
 public class Item
 {
     public Guid Id { get; set; }
+    public Guid? UserId { get; set; }                     // dono do item (multiusuário)
     public string Name { get; set; } = string.Empty;
     public Guid CategoryId { get; set; }
     public Guid? SubcategoryId { get; set; }
-    public string? Description { get; set; }              // opcional
+    public string? Description { get; set; }              // opcional (factual / IA)
+    public string? Observations { get; set; }             // minhas observações (pessoal)
     public string? City { get; set; }                     // cidade onde consumiu (texto livre)
-    public string? Establishment { get; set; }            // estabelecimento (texto livre, p/ comidas)
-    public int Rating { get; set; }                       // 0-5 estrelas
+    public string? State { get; set; }                    // UF (dropdown fixo)
+    public string? Establishment { get; set; }            // estabelecimento (texto livre)
+    public int Rating { get; set; }                       // 0-5 estrelas (nota geral)
+    public int RatingCleanliness { get; set; }            // limpeza (0 = não avaliado)
+    public int RatingService { get; set; }                // atendimento
+    public int RatingAmbiance { get; set; }               // ambiente
     public bool IsFavorite { get; set; }
     public DateTime? ConsumedAt { get; set; }             // quando consumiu (opcional)
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
+    [JsonIgnore]
+    public User? User { get; set; }
     [JsonIgnore]
     public Category Category { get; set; } = null!;
     [JsonIgnore]
@@ -120,6 +128,16 @@ public class LoginRequest
     public string Password { get; set; } = string.Empty;
 }
 
+public class RegisterRequest
+{
+    [Required]
+    public string Name { get; set; } = string.Empty;
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+    [Required, MinLength(6)]
+    public string Password { get; set; } = string.Empty;
+}
+
 public class CategoryRequest
 {
     [Required]
@@ -153,9 +171,14 @@ public class ItemRequest
     public Guid CategoryId { get; set; }
     public Guid? SubcategoryId { get; set; }
     public string? Description { get; set; }
+    public string? Observations { get; set; }
     public string? City { get; set; }
+    public string? State { get; set; }
     public string? Establishment { get; set; }
     public int Rating { get; set; }
+    public int RatingCleanliness { get; set; }
+    public int RatingService { get; set; }
+    public int RatingAmbiance { get; set; }
     public bool IsFavorite { get; set; }
     public DateTime? ConsumedAt { get; set; }
     public List<string> PhotoUrls { get; set; } = new();   // maximo 3 (backend corta)
@@ -219,9 +242,14 @@ public class ItemResponse
     public Guid? SubcategoryId { get; set; }
     public string? SubcategoryName { get; set; }
     public string? Description { get; set; }
+    public string? Observations { get; set; }
     public string? City { get; set; }
+    public string? State { get; set; }
     public string? Establishment { get; set; }
     public int Rating { get; set; }
+    public int RatingCleanliness { get; set; }
+    public int RatingService { get; set; }
+    public int RatingAmbiance { get; set; }
     public bool IsFavorite { get; set; }
     public DateTime? ConsumedAt { get; set; }
     public string? MainPhotoUrl { get; set; }
@@ -245,4 +273,15 @@ public class CategoryCount
     public string Name { get; set; } = string.Empty;
     public string? Icon { get; set; }
     public int Count { get; set; }
+}
+
+public class UserAdminResponse
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public bool IsAdmin { get; set; }
+    public bool IsActive { get; set; }
+    public int ItemCount { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

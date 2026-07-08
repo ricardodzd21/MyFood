@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Plus, X, Star as StarIcon, Sparkles, ImagePlus, Loader2 } from 'lucide-react'
 import api, { type Category, type Item, type Attribute, type AiResult } from '../lib/api'
 import StarRating from '../components/StarRating'
+import { compressImage, BR_STATES } from '../lib/image'
 
 export default function ItemForm() {
   const { id } = useParams()
@@ -22,11 +23,16 @@ export default function ItemForm() {
   const [categoryId, setCategoryId] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
+  const [observations, setObservations] = useState('')
   const [city, setCity] = useState('')
+  const [uf, setUf] = useState('')
   const [establishment, setEstablishment] = useState('')
   const [rating, setRating] = useState(0)
+  const [ratingCleanliness, setRatingCleanliness] = useState(0)
+  const [ratingService, setRatingService] = useState(0)
+  const [ratingAmbiance, setRatingAmbiance] = useState(0)
   const [isFavorite, setIsFavorite] = useState(false)
-  const [consumedAt, setConsumedAt] = useState('')
+  const [consumedAt, setConsumedAt] = useState(() => new Date().toISOString().slice(0, 10))
   const [photos, setPhotos] = useState<string[]>([])
   const [mainPhoto, setMainPhoto] = useState(0)
   const [attributes, setAttributes] = useState<Attribute[]>([])
@@ -40,8 +46,10 @@ export default function ItemForm() {
       api.get<Item>(`/api/items/${id}`).then((r) => {
         const i = r.data
         setName(i.Name); setCategoryId(i.CategoryId); setSubcategoryId(i.SubcategoryId ?? '')
-        setDescription(i.Description ?? ''); setCity(i.City ?? ''); setEstablishment(i.Establishment ?? '')
+        setDescription(i.Description ?? ''); setObservations(i.Observations ?? '')
+        setCity(i.City ?? ''); setUf(i.State ?? ''); setEstablishment(i.Establishment ?? '')
         setRating(i.Rating); setIsFavorite(i.IsFavorite)
+        setRatingCleanliness(i.RatingCleanliness); setRatingService(i.RatingService); setRatingAmbiance(i.RatingAmbiance)
         setConsumedAt(i.ConsumedAt ? i.ConsumedAt.slice(0, 10) : '')
         setPhotos(i.Photos.map((p) => p.Url)); setMainPhoto(Math.max(0, i.Photos.findIndex((p) => p.IsMain)))
         setAttributes(i.Attributes.length ? i.Attributes : [])
@@ -65,8 +73,9 @@ export default function ItemForm() {
     try {
       const urls: string[] = []
       for (const f of toUpload) {
+        const compressed = await compressImage(f)
         const fd = new FormData()
-        fd.append('file', f)
+        fd.append('file', compressed)
         const r = await api.post('/api/upload', fd)
         urls.push(r.data.url)
       }
@@ -142,9 +151,14 @@ export default function ItemForm() {
       CategoryId: categoryId,
       SubcategoryId: subcategoryId || null,
       Description: description || null,
+      Observations: observations || null,
       City: city || null,
+      State: uf || null,
       Establishment: establishment || null,
       Rating: rating,
+      RatingCleanliness: ratingCleanliness,
+      RatingService: ratingService,
+      RatingAmbiance: ratingAmbiance,
       IsFavorite: isFavorite,
       ConsumedAt: consumedAt ? new Date(consumedAt).toISOString() : null,
       PhotoUrls: photos,
@@ -253,14 +267,40 @@ export default function ItemForm() {
       </div>
 
       {/* Onde consumi */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
+      <div className="grid grid-cols-6 gap-3">
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">Estado</label>
+          <select value={uf} onChange={(e) => setUf(e.target.value)} className="w-full border border-stone-300 rounded-lg px-3 py-2">
+            <option value="">—</option>
+            {BR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="col-span-4">
           <label className="block text-sm font-medium mb-1">Cidade <span className="text-stone-400">(onde consumi)</span></label>
           <input value={city} onChange={(e) => setCity(e.target.value)} className="w-full border border-stone-300 rounded-lg px-3 py-2" placeholder="Ex: Campinas" />
         </div>
-        <div>
+        <div className="col-span-6">
           <label className="block text-sm font-medium mb-1">Estabelecimento</label>
           <input value={establishment} onChange={(e) => setEstablishment(e.target.value)} className="w-full border border-stone-300 rounded-lg px-3 py-2" placeholder="Ex: Bar do Zé" />
+        </div>
+      </div>
+
+      {/* Avaliação do local (opcional) */}
+      <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
+        <label className="block text-sm font-medium mb-3">Avaliação do local <span className="text-stone-400">(opcional)</span></label>
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          <div>
+            <span className="block text-xs text-stone-500 mb-1">Limpeza</span>
+            <StarRating value={ratingCleanliness} onChange={setRatingCleanliness} size={22} />
+          </div>
+          <div>
+            <span className="block text-xs text-stone-500 mb-1">Atendimento</span>
+            <StarRating value={ratingService} onChange={setRatingService} size={22} />
+          </div>
+          <div>
+            <span className="block text-xs text-stone-500 mb-1">Ambiente</span>
+            <StarRating value={ratingAmbiance} onChange={setRatingAmbiance} size={22} />
+          </div>
         </div>
       </div>
 
@@ -289,7 +329,13 @@ export default function ItemForm() {
       {/* Descrição */}
       <div>
         <label className="block text-sm font-medium mb-1">Descrição <span className="text-stone-400">(opcional)</span></label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400" placeholder="Suas impressões…" />
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400" placeholder="O que é o item (a IA costuma preencher)…" />
+      </div>
+
+      {/* Minhas observações */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Minhas observações <span className="text-stone-400">(opcional)</span></label>
+        <textarea value={observations} onChange={(e) => setObservations(e.target.value)} rows={3} className="w-full border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400" placeholder="O que você achou, com quem estava, se pediria de novo…" />
       </div>
 
       <div className="flex gap-2">

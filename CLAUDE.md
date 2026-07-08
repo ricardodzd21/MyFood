@@ -1,6 +1,11 @@
 # MyFood — Meu catálogo de comidas e bebidas
 
-App **pessoal** para catalogar tudo que você consome (vinhos, cervejas, comidas, cafés...). Um único admin (você) cadastra e administra tudo. Segue o mesmo template dos projetos InterConsult (Carlink/ServiceLink/GoIndaiatuba), porém **enxuto**: sem pagamento, planos, cupons ou multiusuário.
+Plataforma **multiusuário** para catalogar comidas e bebidas (vinhos, cervejas, comidas, cafés...). Cada usuário se cadastra e mantém o **próprio catálogo** (itens escopados por `UserId`). O **admin** não vê catálogos alheios, mas **gerencia categorias** (globais) e **gerencia usuários** (bloquear/excluir). Segue o template InterConsult (Carlink/ServiceLink/GoIndaiatuba), porém **enxuto**: sem pagamento, planos ou cupons.
+
+## Papéis
+- **Usuário comum**: cadastro público (`/cadastro`), login, catálogo próprio (itens, favoritos, stats). Só enxerga/edita os próprios itens.
+- **Admin**: tudo do usuário + páginas `/categorias` (CRUD de categorias/subcategorias/atributos sugeridos — **globais**) e `/usuarios` (listar, bloquear, excluir). Criado no boot via `Admin__Email`/`Admin__Password` do server.env.
+- Escopo por usuário no backend: `.Where(i => i.UserId == uid)` em items/stats; ownership checada em GET/PUT/DELETE por id. Categorias/subcategorias exigem `IsAdminUser(principal)`.
 
 ## Identidade
 - **Marca**: MyFood
@@ -22,23 +27,27 @@ App **pessoal** para catalogar tudo que você consome (vinhos, cervejas, comidas
 ## Entidades
 | Entidade | Função |
 |----------|--------|
-| User | Só login. Admin único criado no boot (config `Admin:Email`/`Admin:Password`) |
-| Category | Vinhos, Cervejas, Destilados, Comidas, Cafés... (Icon emoji, Color, Order) |
+| User | Cadastro público (IsAdmin, IsActive). Admin criado no boot (config `Admin:Email`/`Admin:Password`) |
+| Category | Globais (admin). Vinhos, Cervejas, Destilados, Comidas, Cafés... (Icon emoji, Color, Order) |
 | Subcategory | Tinto Suave, IPA, Massa, Sobremesa... (pertence a uma Category) |
 | CategoryAttribute | Atributos **sugeridos** por categoria (ex: Vinhos → Teor, Origem, Safra) |
-| Item | O item catalogado: Name, Category, Subcategory?, Description?, **Rating (0-5)**, **IsFavorite**, ConsumedAt? |
+| Item | Do usuário (**UserId**): Name, Category, Subcategory?, Description?, **Observations?**, City?, **State?**, Establishment?, **Rating (0-5)**, sub-notas **RatingCleanliness/Service/Ambiance**, **IsFavorite**, ConsumedAt? |
 | ItemPhoto | Fotos do item — **máximo 3** (validado no backend), uma IsMain |
 | ItemAttribute | Atributos **flexíveis** nome→valor (Teor=13%, Origem=Chile, Estabelecimento=Restaurante X) |
 
 **Modelo de atributos flexíveis**: cada item guarda pares nome/valor livres, então qualquer categoria cabe sem mudar o schema. Vinho tem Teor/Origem/Safra; comida tem Estabelecimento (texto livre, sem pré-cadastro)/Ingredientes. A categoria só *sugere* os campos; nada é obrigatório.
 
-## Endpoints (todos exigem JWT, exceto login)
-- `POST /api/auth/login` · `GET /api/auth/me`
-- `GET/POST/PUT/DELETE /api/categories` · `POST/PUT/DELETE /api/subcategories`
-- `GET /api/items?category=&subcategory=&favorite=&minRating=&q=&sort=` · `GET /api/items/{id}`
+## Endpoints (JWT exceto login/register)
+- `POST /api/auth/login` · `POST /api/auth/register` (público) · `GET /api/auth/me`
+- `GET /api/categories` (todos) · `POST/PUT/DELETE /api/categories` + `/api/subcategories` (**admin**)
+- `GET /api/items?category=&subcategory=&favorite=&minRating=&q=&sort=` · `GET /api/items/{id}` (escopo do dono; busca cobre nome/descrição/cidade/estabelecimento)
 - `POST/PUT/DELETE /api/items` · `POST /api/items/{id}/toggle-favorite`
-- `GET /api/stats` (dashboard) · `POST /api/upload` (fotos → wwwroot/uploads)
+- `GET /api/stats` (do usuário) · `POST /api/upload` (fotos → wwwroot/uploads; front comprime antes)
+- **Admin**: `GET /api/admin/users` · `POST /api/admin/users/{id}/toggle-active` · `DELETE /api/admin/users/{id}`
 - `GET /api/ai/status` · `POST /api/ai/analyze` (IA lê foto e devolve campos)
+
+## Segurança
+- `JwtSecret` e `Admin__Email`/`Admin__Password` são **obrigatórios em Production** (o boot lança exceção se faltarem). Em Development há fallback local. `appsettings.json` não versiona segredo.
 
 ## IA — preencher item a partir da foto (opcional, gratuito)
 - Provedor: **Google Gemini Flash** (free tier). Chave grátis em https://aistudio.google.com/apikey

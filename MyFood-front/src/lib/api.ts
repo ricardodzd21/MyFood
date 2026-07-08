@@ -71,14 +71,29 @@ export interface Item {
   SubcategoryId?: string
   SubcategoryName?: string
   Description?: string
+  Observations?: string
   City?: string
+  State?: string
   Establishment?: string
   Rating: number
+  RatingCleanliness: number
+  RatingService: number
+  RatingAmbiance: number
   IsFavorite: boolean
   ConsumedAt?: string
   MainPhotoUrl?: string
   Photos: Photo[]
   Attributes: Attribute[]
+  CreatedAt: string
+}
+
+export interface AdminUser {
+  Id: string
+  Name: string
+  Email: string
+  IsAdmin: boolean
+  IsActive: boolean
+  ItemCount: number
   CreatedAt: string
 }
 

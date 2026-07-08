@@ -87,22 +87,35 @@ public class AppDbContext : DbContext
             entity.ToTable("items");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
             entity.Property(e => e.SubcategoryId).HasColumnName("subcategory_id");
             entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(5000);
+            entity.Property(e => e.Observations).HasColumnName("observations").HasMaxLength(5000);
             entity.Property(e => e.City).HasColumnName("city").HasMaxLength(150);
+            entity.Property(e => e.State).HasColumnName("state").HasMaxLength(2);
             entity.Property(e => e.Establishment).HasColumnName("establishment").HasMaxLength(200);
             entity.Property(e => e.Rating).HasColumnName("rating").HasDefaultValue(0);
+            entity.Property(e => e.RatingCleanliness).HasColumnName("rating_cleanliness").HasDefaultValue(0);
+            entity.Property(e => e.RatingService).HasColumnName("rating_service").HasDefaultValue(0);
+            entity.Property(e => e.RatingAmbiance).HasColumnName("rating_ambiance").HasDefaultValue(0);
             entity.Property(e => e.IsFavorite).HasColumnName("is_favorite").HasDefaultValue(false);
             entity.Property(e => e.ConsumedAt).HasColumnName("consumed_at");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
 
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasOne(e => e.Category)
                 .WithMany(c => c.Items)
                 .HasForeignKey(e => e.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(e => e.UserId);
 
             entity.HasOne(e => e.Subcategory)
                 .WithMany()

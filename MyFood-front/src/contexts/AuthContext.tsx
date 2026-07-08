@@ -5,6 +5,7 @@ interface AuthContextType {
   user: UserResponse | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
+  register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
 }
 
@@ -33,13 +34,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(r.data.user)
   }
 
+  async function register(name: string, email: string, password: string) {
+    const r = await api.post('/api/auth/register', { Name: name, Email: email, Password: password })
+    localStorage.setItem('myfood_token', r.data.token)
+    setUser(r.data.user)
+  }
+
   function logout() {
     localStorage.removeItem('myfood_token')
     setUser(null)
     location.href = '/login'
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

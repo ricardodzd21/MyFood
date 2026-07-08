@@ -27,6 +27,9 @@ export default function ItemCard({ item }: { item: Item }) {
           {item.SubcategoryName && <span>· {item.SubcategoryName}</span>}
         </div>
         <h3 className="font-semibold text-stone-800 line-clamp-1">{item.Name}</h3>
+        {(item.Establishment || item.City) && (
+          <p className="text-xs text-stone-400 line-clamp-1 mt-0.5">{[item.Establishment, item.City].filter(Boolean).join(' · ')}</p>
+        )}
         <div className="mt-1.5">
           <StarRating value={item.Rating} size={14} />
         </div>

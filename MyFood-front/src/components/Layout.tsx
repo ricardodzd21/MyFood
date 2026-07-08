@@ -1,19 +1,24 @@
 import { Link, useLocation } from 'react-router-dom'
-import { UtensilsCrossed, LayoutGrid, Plus, Tags, LogOut, BarChart3 } from 'lucide-react'
+import { UtensilsCrossed, LayoutGrid, Plus, Tags, LogOut, BarChart3, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import type { ReactNode } from 'react'
-
-const nav = [
-  { to: '/', label: 'Início', icon: BarChart3 },
-  { to: '/catalogo', label: 'Catálogo', icon: LayoutGrid },
-  { to: '/novo', label: 'Adicionar', icon: Plus },
-  { to: '/categorias', label: 'Categorias', icon: Tags },
-]
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
   const active = (to: string) => (to === '/' ? pathname === '/' : pathname.startsWith(to))
+
+  const nav = [
+    { to: '/', label: 'Início', icon: BarChart3 },
+    { to: '/catalogo', label: 'Catálogo', icon: LayoutGrid },
+    { to: '/novo', label: 'Adicionar', icon: Plus },
+    ...(user?.IsAdmin
+      ? [
+          { to: '/categorias', label: 'Categorias', icon: Tags },
+          { to: '/usuarios', label: 'Usuários', icon: Users },
+        ]
+      : []),
+  ]
 
   return (
     <div className="min-h-screen flex flex-col">

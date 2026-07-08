@@ -4,6 +4,15 @@ import { Heart, Pencil, Trash2, ArrowLeft, Calendar, MapPin } from 'lucide-react
 import api, { type Item } from '../lib/api'
 import StarRating from '../components/StarRating'
 
+function SubRating({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <span className="block text-xs text-stone-500 mb-0.5">{label}</span>
+      <StarRating value={value} size={15} />
+    </div>
+  )
+}
+
 export default function ItemDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -72,9 +81,9 @@ export default function ItemDetail() {
             </button>
           </div>
 
-          {(item.Establishment || item.City) && (
+          {(item.Establishment || item.City || item.State) && (
             <p className="flex items-center gap-1.5 text-sm text-stone-500 mt-3">
-              <MapPin size={14} /> {[item.Establishment, item.City].filter(Boolean).join(' · ')}
+              <MapPin size={14} /> {[item.Establishment, [item.City, item.State].filter(Boolean).join(' - ')].filter(Boolean).join(' · ')}
             </p>
           )}
 
@@ -84,7 +93,22 @@ export default function ItemDetail() {
             </p>
           )}
 
-          {item.Description && <p className="mt-3 text-stone-700 whitespace-pre-line">{item.Description}</p>}
+          {(item.RatingCleanliness > 0 || item.RatingService > 0 || item.RatingAmbiance > 0) && (
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+              {item.RatingCleanliness > 0 && <SubRating label="Limpeza" value={item.RatingCleanliness} />}
+              {item.RatingService > 0 && <SubRating label="Atendimento" value={item.RatingService} />}
+              {item.RatingAmbiance > 0 && <SubRating label="Ambiente" value={item.RatingAmbiance} />}
+            </div>
+          )}
+
+          {item.Description && <p className="mt-4 text-stone-700 whitespace-pre-line">{item.Description}</p>}
+
+          {item.Observations && (
+            <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-3">
+              <p className="text-xs font-medium text-amber-700 mb-1">Minhas observações</p>
+              <p className="text-stone-700 text-sm whitespace-pre-line">{item.Observations}</p>
+            </div>
+          )}
 
           {item.Attributes.length > 0 && (
             <div className="mt-4 border border-stone-200 rounded-xl divide-y divide-stone-100">

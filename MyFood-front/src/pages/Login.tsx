@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { UtensilsCrossed } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -63,6 +63,10 @@ export default function Login() {
         >
           {loading ? 'Entrando…' : 'Entrar'}
         </button>
+
+        <p className="text-center text-sm text-stone-500 mt-4">
+          Não tem conta? <Link to="/cadastro" className="text-amber-600 font-medium">Criar conta</Link>
+        </p>
       </form>
     </div>
   )

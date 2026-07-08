@@ -49,6 +49,9 @@ jobs:
 
           cp -r MyFood-api/publish/* deploy/api/
 
+          # scripts utilitários (backup etc.) vão junto pro servidor
+          cp -r scripts deploy/scripts 2>/dev/null || true
+
           # Dockerfile front (só empacota o build pronto)
           cat > deploy/front/Dockerfile << 'EOF'
           FROM nginx:alpine
