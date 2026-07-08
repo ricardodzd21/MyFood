@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Heart, Pencil, Trash2, ArrowLeft, Calendar, MapPin } from 'lucide-react'
 import api, { type Item } from '../lib/api'
 import StarRating from '../components/StarRating'
+import Lightbox from '../components/Lightbox'
 
 function SubRating({ label, value }: { label: string; value: number }) {
   return (
@@ -19,6 +20,7 @@ export default function ItemDetail() {
   const [item, setItem] = useState<Item | null>(null)
   const [loading, setLoading] = useState(true)
   const [activePhoto, setActivePhoto] = useState(0)
+  const [lightbox, setLightbox] = useState(false)
 
   useEffect(() => {
     api.get<Item>(`/api/items/${id}`).then((r) => setItem(r.data)).finally(() => setLoading(false))
@@ -50,7 +52,12 @@ export default function ItemDetail() {
         <div>
           <div className="aspect-square bg-stone-100 rounded-xl overflow-hidden flex items-center justify-center text-6xl">
             {item.Photos.length > 0 ? (
-              <img src={item.Photos[activePhoto]?.Url} alt={item.Name} className="w-full h-full object-cover" />
+              <img
+                src={item.Photos[activePhoto]?.Url}
+                alt={item.Name}
+                onClick={() => setLightbox(true)}
+                className="w-full h-full object-cover cursor-zoom-in"
+              />
             ) : (
               item.CategoryIcon || '🍽️'
             )}
@@ -131,6 +138,10 @@ export default function ItemDetail() {
           </div>
         </div>
       </div>
+
+      {lightbox && (
+        <Lightbox images={item.Photos.map((p) => p.Url)} index={activePhoto} onClose={() => setLightbox(false)} />
+      )}
     </div>
   )
 }
