@@ -45,6 +45,7 @@ export interface Category {
   Icon?: string
   Color?: string
   Order: number
+  HasVenueRating: boolean
   ItemCount: number
   Subcategories: Subcategory[]
   SuggestedAttributes: string[]

@@ -42,6 +42,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Icon).HasColumnName("icon").HasMaxLength(50);
             entity.Property(e => e.Color).HasColumnName("color").HasMaxLength(20);
             entity.Property(e => e.Order).HasColumnName("order").HasDefaultValue(0);
+            entity.Property(e => e.HasVenueRating).HasColumnName("has_venue_rating").HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
             entity.HasIndex(e => e.Name).IsUnique();
         });
@@ -171,11 +172,11 @@ public class AppDbContext : DbContext
         Guid subid(int n) => Guid.Parse($"00000000-0000-0000-0003-{n:D12}");
 
         modelBuilder.Entity<Category>().HasData(
-            new Category { Id = cid(1), Name = "Vinhos", Icon = "🍷", Color = "#7f1d1d", Order = 1, CreatedAt = seed },
-            new Category { Id = cid(2), Name = "Cervejas", Icon = "🍺", Color = "#b45309", Order = 2, CreatedAt = seed },
-            new Category { Id = cid(3), Name = "Destilados", Icon = "🥃", Color = "#92400e", Order = 3, CreatedAt = seed },
-            new Category { Id = cid(4), Name = "Comidas", Icon = "🍽️", Color = "#166534", Order = 4, CreatedAt = seed },
-            new Category { Id = cid(5), Name = "Cafés", Icon = "☕", Color = "#44403c", Order = 5, CreatedAt = seed }
+            new Category { Id = cid(1), Name = "Vinhos", Icon = "🍷", Color = "#7f1d1d", Order = 1, HasVenueRating = false, CreatedAt = seed },
+            new Category { Id = cid(2), Name = "Cervejas", Icon = "🍺", Color = "#b45309", Order = 2, HasVenueRating = false, CreatedAt = seed },
+            new Category { Id = cid(3), Name = "Destilados", Icon = "🥃", Color = "#92400e", Order = 3, HasVenueRating = false, CreatedAt = seed },
+            new Category { Id = cid(4), Name = "Comidas", Icon = "🍽️", Color = "#166534", Order = 4, HasVenueRating = true, CreatedAt = seed },
+            new Category { Id = cid(5), Name = "Cafés", Icon = "☕", Color = "#44403c", Order = 5, HasVenueRating = false, CreatedAt = seed }
         );
 
         // Subcategorias de exemplo

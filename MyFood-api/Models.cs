@@ -25,6 +25,7 @@ public class Category
     public string? Icon { get; set; }                     // emoji ou nome de icone (ex: "🍷")
     public string? Color { get; set; }                    // hex opcional para o card
     public int Order { get; set; }
+    public bool HasVenueRating { get; set; }              // mostra sub-notas do local (limpeza/atendimento/ambiente)
     public DateTime CreatedAt { get; set; }
 
     [JsonIgnore]
@@ -145,6 +146,7 @@ public class CategoryRequest
     public string? Icon { get; set; }
     public string? Color { get; set; }
     public int Order { get; set; }
+    public bool HasVenueRating { get; set; }
     public List<string> SuggestedAttributes { get; set; } = new();
 }
 
@@ -210,6 +212,7 @@ public class CategoryResponse
     public string? Icon { get; set; }
     public string? Color { get; set; }
     public int Order { get; set; }
+    public bool HasVenueRating { get; set; }
     public int ItemCount { get; set; }
     public List<SubcategoryResponse> Subcategories { get; set; } = new();
     public List<string> SuggestedAttributes { get; set; } = new();

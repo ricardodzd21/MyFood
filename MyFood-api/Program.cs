@@ -232,7 +232,7 @@ app.MapGet("/api/categories", async (AppDbContext db, ClaimsPrincipal principal)
 
     return Results.Ok(cats.Select(c => new CategoryResponse
     {
-        Id = c.Id, Name = c.Name, Icon = c.Icon, Color = c.Color, Order = c.Order,
+        Id = c.Id, Name = c.Name, Icon = c.Icon, Color = c.Color, Order = c.Order, HasVenueRating = c.HasVenueRating,
         ItemCount = counts.FirstOrDefault(x => x.Key == c.Id)?.Count ?? 0,
         Subcategories = c.Subcategories.OrderBy(s => s.Order).Select(s => new SubcategoryResponse
         {
@@ -246,7 +246,7 @@ app.MapGet("/api/categories", async (AppDbContext db, ClaimsPrincipal principal)
 app.MapPost("/api/categories", async (CategoryRequest req, AppDbContext db, ClaimsPrincipal principal) =>
 {
     if (!IsAdminUser(principal)) return Results.Forbid();
-    var cat = new Category { Name = req.Name, Icon = req.Icon, Color = req.Color, Order = req.Order, CreatedAt = DateTime.UtcNow };
+    var cat = new Category { Name = req.Name, Icon = req.Icon, Color = req.Color, Order = req.Order, HasVenueRating = req.HasVenueRating, CreatedAt = DateTime.UtcNow };
     db.Categories.Add(cat);
     foreach (var (name, idx) in req.SuggestedAttributes.Where(s => !string.IsNullOrWhiteSpace(s)).Select((s, i) => (s, i)))
         db.CategoryAttributes.Add(new CategoryAttribute { Category = cat, Name = name.Trim(), Order = idx });
@@ -259,7 +259,7 @@ app.MapPut("/api/categories/{id:guid}", async (Guid id, CategoryRequest req, App
     if (!IsAdminUser(principal)) return Results.Forbid();
     var cat = await db.Categories.Include(c => c.SuggestedAttributes).FirstOrDefaultAsync(c => c.Id == id);
     if (cat == null) return Results.NotFound();
-    cat.Name = req.Name; cat.Icon = req.Icon; cat.Color = req.Color; cat.Order = req.Order;
+    cat.Name = req.Name; cat.Icon = req.Icon; cat.Color = req.Color; cat.Order = req.Order; cat.HasVenueRating = req.HasVenueRating;
     db.CategoryAttributes.RemoveRange(cat.SuggestedAttributes);
     foreach (var (name, idx) in req.SuggestedAttributes.Where(s => !string.IsNullOrWhiteSpace(s)).Select((s, i) => (s, i)))
         db.CategoryAttributes.Add(new CategoryAttribute { CategoryId = cat.Id, Name = name.Trim(), Order = idx });

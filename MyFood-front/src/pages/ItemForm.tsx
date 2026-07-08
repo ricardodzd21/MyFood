@@ -146,6 +146,7 @@ export default function ItemForm() {
     e.preventDefault()
     if (!name || !categoryId) return
     setSaving(true)
+    const venue = !!category?.HasVenueRating
     const payload = {
       Name: name,
       CategoryId: categoryId,
@@ -156,9 +157,9 @@ export default function ItemForm() {
       State: uf || null,
       Establishment: establishment || null,
       Rating: rating,
-      RatingCleanliness: ratingCleanliness,
-      RatingService: ratingService,
-      RatingAmbiance: ratingAmbiance,
+      RatingCleanliness: venue ? ratingCleanliness : 0,
+      RatingService: venue ? ratingService : 0,
+      RatingAmbiance: venue ? ratingAmbiance : 0,
       IsFavorite: isFavorite,
       ConsumedAt: consumedAt ? new Date(consumedAt).toISOString() : null,
       PhotoUrls: photos,
@@ -285,24 +286,26 @@ export default function ItemForm() {
         </div>
       </div>
 
-      {/* Avaliação do local (opcional) */}
-      <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
-        <label className="block text-sm font-medium mb-3">Avaliação do local <span className="text-stone-400">(opcional)</span></label>
-        <div className="flex flex-wrap gap-x-8 gap-y-3">
-          <div>
-            <span className="block text-xs text-stone-500 mb-1">Limpeza</span>
-            <StarRating value={ratingCleanliness} onChange={setRatingCleanliness} size={22} />
-          </div>
-          <div>
-            <span className="block text-xs text-stone-500 mb-1">Atendimento</span>
-            <StarRating value={ratingService} onChange={setRatingService} size={22} />
-          </div>
-          <div>
-            <span className="block text-xs text-stone-500 mb-1">Ambiente</span>
-            <StarRating value={ratingAmbiance} onChange={setRatingAmbiance} size={22} />
+      {/* Avaliação do local — só para categorias de local (ex: Comidas) */}
+      {category?.HasVenueRating && (
+        <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
+          <label className="block text-sm font-medium mb-3">Avaliação do local <span className="text-stone-400">(opcional)</span></label>
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
+            <div>
+              <span className="block text-xs text-stone-500 mb-1">Limpeza</span>
+              <StarRating value={ratingCleanliness} onChange={setRatingCleanliness} size={22} />
+            </div>
+            <div>
+              <span className="block text-xs text-stone-500 mb-1">Atendimento</span>
+              <StarRating value={ratingService} onChange={setRatingService} size={22} />
+            </div>
+            <div>
+              <span className="block text-xs text-stone-500 mb-1">Ambiente</span>
+              <StarRating value={ratingAmbiance} onChange={setRatingAmbiance} size={22} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Atributos flexíveis */}
       <div>

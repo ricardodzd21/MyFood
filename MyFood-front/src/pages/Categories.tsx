@@ -94,12 +94,13 @@ function CategoryModal({ category, onClose, onSaved }: { category: Category | nu
   const [icon, setIcon] = useState(category?.Icon ?? '')
   const [color, setColor] = useState(category?.Color ?? '#7f1d1d')
   const [attrs, setAttrs] = useState<string[]>(category?.SuggestedAttributes ?? [])
+  const [hasVenue, setHasVenue] = useState(category?.HasVenueRating ?? false)
   const [saving, setSaving] = useState(false)
 
   async function save() {
     if (!name.trim()) return
     setSaving(true)
-    const payload = { Name: name.trim(), Icon: icon, Color: color, Order: category?.Order ?? 99, SuggestedAttributes: attrs.filter((a) => a.trim()) }
+    const payload = { Name: name.trim(), Icon: icon, Color: color, Order: category?.Order ?? 99, HasVenueRating: hasVenue, SuggestedAttributes: attrs.filter((a) => a.trim()) }
     try {
       if (category) await api.put(`/api/categories/${category.Id}`, payload)
       else await api.post('/api/categories', payload)
@@ -124,6 +125,14 @@ function CategoryModal({ category, onClose, onSaved }: { category: Category | nu
             <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🍷" className="w-full border border-stone-300 rounded-lg px-3 py-2 text-center" />
           </div>
         </div>
+
+        <label className="flex items-start gap-2 mb-4 cursor-pointer select-none">
+          <input type="checkbox" checked={hasVenue} onChange={(e) => setHasVenue(e.target.checked)} className="w-4 h-4 mt-0.5 accent-amber-500" />
+          <span className="text-sm">
+            Avaliação de local
+            <span className="block text-xs text-stone-400">Mostra notas de limpeza, atendimento e ambiente (para comidas/estabelecimentos). Deixe desmarcado para bebidas.</span>
+          </span>
+        </label>
 
         <div className="mb-4">
           <label className="block text-sm font-medium mb-1">Atributos sugeridos</label>
